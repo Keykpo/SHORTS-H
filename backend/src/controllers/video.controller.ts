@@ -1,6 +1,9 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { VideoService } from '../services/video.service';
+import { addVideoToQueue } from '../workers/video-processor';
+import { getFileUrl } from '../middlewares/upload.middleware';
+import { AppError } from '../middlewares/error.middleware';
 
 export class VideoController {
   /**
@@ -53,6 +56,12 @@ export class VideoController {
   static async upload(req: AuthRequest, res: Response) {
     try {
       const userId = req.userId!;
+
+      // Check if file was uploaded
+      if (!req.file) {
+        throw new AppError(400, 'No video file uploaded', 'NO_FILE');
+      }
+
       const {
         title,
         description,
@@ -62,28 +71,94 @@ export class VideoController {
         contentWarnings,
       } = req.body;
 
-      // In a real implementation, you would handle the actual file upload here
-      // For this prototype, we'll simulate with placeholder URLs
-      const videoUrl = 'https://cdn.example.com/videos/placeholder.mp4';
-      const thumbnailUrl = 'https://cdn.example.com/thumbnails/placeholder.jpg';
+      // Parse tags if string
+      const parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
+      const parsedWarnings = typeof contentWarnings === 'string'
+        ? JSON.parse(contentWarnings)
+        : contentWarnings;
 
+      // Get file path
+      const filePath = req.file.path;
+      const fileUrl = getFileUrl(filePath);
+
+      // Create video record with UPLOADING status
       const video = await VideoService.createVideo({
         userId,
         title,
         description,
-        isNsfw: isNsfw ?? true,
+        isNsfw: isNsfw === 'true' || isNsfw === true,
         nsfwLevel: nsfwLevel || 'MODERATE',
-        tags,
-        contentWarnings,
-        videoUrl,
-        thumbnailUrl,
-        duration: 30, // Placeholder duration
+        tags: parsedTags,
+        contentWarnings: parsedWarnings || [],
+        videoUrl: fileUrl, // Temporary URL, will be replaced after processing
+        thumbnailUrl: 'https://cdn.example.com/thumbnails/processing.jpg', // Placeholder
+        duration: 0, // Will be updated after processing
       });
 
-      res.status(201).json({
+      // Add to processing queue
+      await addVideoToQueue(video.id, filePath, userId);
+
+      res.status(202).json({
         success: true,
-        message: 'Video uploaded successfully',
-        data: video,
+        message: 'Video uploaded and queued for processing',
+        data: {
+          id: video.id,
+          status: video.status,
+          title: video.title,
+          message: 'Your video is being processed. This may take a few minutes.',
+        },
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Get video processing status
+   */
+  static async getProcessingStatus(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const userId = req.userId!;
+
+      const video = await prisma.video.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          status: true,
+          title: true,
+          userId: true,
+          createdAt: true,
+          publishedAt: true,
+        },
+      });
+
+      if (!video) {
+        throw new AppError(404, 'Video not found', 'VIDEO_NOT_FOUND');
+      }
+
+      // Check ownership
+      if (video.userId !== userId) {
+        throw new AppError(403, 'Unauthorized', 'UNAUTHORIZED');
+      }
+
+      const statusMessages = {
+        UPLOADING: 'Video is being uploaded',
+        PROCESSING: 'Video is being processed (transcoding to multiple qualities)',
+        READY: 'Video is ready and published',
+        FAILED: 'Video processing failed. Please try uploading again.',
+        DELETED: 'Video has been deleted',
+      };
+
+      res.status(200).json({
+        success: true,
+        data: {
+          id: video.id,
+          status: video.status,
+          message: statusMessages[video.status],
+          createdAt: video.createdAt,
+          publishedAt: video.publishedAt,
+        },
       });
     } catch (error) {
       throw error;

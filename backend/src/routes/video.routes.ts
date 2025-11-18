@@ -6,6 +6,7 @@ import {
   requireAgeVerification,
 } from '../middlewares/auth.middleware';
 import { validate, schemas } from '../middlewares/validation.middleware';
+import { uploadVideo } from '../middlewares/upload.middleware';
 
 const router = Router();
 
@@ -42,8 +43,19 @@ router.post(
   '/upload',
   authenticate,
   requireAgeVerification,
-  validate(schemas.uploadVideo),
+  uploadVideo,
   VideoController.upload
+);
+
+/**
+ * @route   GET /api/videos/:id/status
+ * @desc    Get video processing status
+ * @access  Private (owner only)
+ */
+router.get(
+  '/:id/status',
+  authenticate,
+  VideoController.getProcessingStatus
 );
 
 /**
