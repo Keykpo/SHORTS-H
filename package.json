@@ -1,0 +1,35 @@
+{
+  "name": "anime-shorts-platform",
+  "version": "1.0.0",
+  "description": "Platform for anime adult content short videos",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "prisma:generate": "npm run prisma:generate --workspace=backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace=backend",
+    "prisma:studio": "npm run prisma:studio --workspace=backend"
+  },
+  "keywords": [
+    "video",
+    "streaming",
+    "anime",
+    "shorts",
+    "adult-content"
+  ],
+  "author": "AnimeShorts Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  }
+}
