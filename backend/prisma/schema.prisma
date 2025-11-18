@@ -1,0 +1,433 @@
+// AnimeShorts Database Schema
+// PostgreSQL database for adult anime short video platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique @db.VarChar(30)
+  email         String   @unique @db.VarChar(255)
+  passwordHash  String   @map("password_hash")
+
+  // Profile
+  displayName   String?  @map("display_name") @db.VarChar(50)
+  bio           String?  @db.VarChar(500)
+  avatarUrl     String?  @map("avatar_url")
+  bannerUrl     String?  @map("banner_url")
+
+  // Verification and Status
+  isEmailVerified Boolean @default(false) @map("is_email_verified")
+  isAgeVerified   Boolean @default(false) @map("is_age_verified")
+  birthDate       DateTime? @map("birth_date") @db.Date
+  isPremium       Boolean @default(false) @map("is_premium")
+  isActive        Boolean @default(true) @map("is_active")
+  isBanned        Boolean @default(false) @map("is_banned")
+
+  // Settings
+  nsfwFilterEnabled Boolean @default(false) @map("nsfw_filter_enabled")
+  language          String  @default("en") @db.VarChar(5)
+
+  // Timestamps
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  lastLoginAt   DateTime? @map("last_login_at")
+
+  // Relations
+  videos        Video[]
+  comments      Comment[]
+  interactions  Interaction[]
+  followers     Follow[] @relation("Following")
+  following     Follow[] @relation("Follower")
+  reports       Report[] @relation("Reporter")
+  notifications Notification[]
+  sessions      Session[]
+
+  @@index([email])
+  @@index([username])
+  @@index([createdAt])
+  @@map("users")
+}
+
+// ============================================
+// VIDEO CONTENT
+// ============================================
+
+model Video {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+
+  // Content
+  title       String   @db.VarChar(200)
+  description String?  @db.VarChar(5000)
+
+  // Video Files
+  videoUrl      String  @map("video_url") // CDN URL for processed video
+  thumbnailUrl  String  @map("thumbnail_url")
+  video1080pUrl String? @map("video_1080p_url")
+  video720pUrl  String? @map("video_720p_url")
+  video480pUrl  String? @map("video_480p_url")
+
+  // Metadata
+  duration      Int     // Duration in seconds
+  width         Int?    // Video width
+  height        Int?    // Video height
+  fileSize      BigInt? @map("file_size") // Size in bytes
+
+  // Content Classification
+  isNsfw        Boolean @default(true) @map("is_nsfw")
+  nsfwLevel     NsfwLevel @default(MODERATE) @map("nsfw_level")
+  contentWarnings String[] @map("content_warnings") // Array of warning tags
+
+  // Status
+  status        VideoStatus @default(PROCESSING)
+  isPublic      Boolean @default(true) @map("is_public")
+  allowComments Boolean @default(true) @map("allow_comments")
+
+  // Engagement Stats (denormalized for performance)
+  viewsCount    Int @default(0) @map("views_count")
+  likesCount    Int @default(0) @map("likes_count")
+  dislikesCount Int @default(0) @map("dislikes_count")
+  commentsCount Int @default(0) @map("comments_count")
+  sharesCount   Int @default(0) @map("shares_count")
+
+  // Timestamps
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  publishedAt   DateTime? @map("published_at")
+
+  // Relations
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags          VideoTag[]
+  comments      Comment[]
+  interactions  Interaction[]
+  reports       Report[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([isNsfw])
+  @@index([createdAt(sort: Desc)])
+  @@index([viewsCount(sort: Desc)])
+  @@index([likesCount(sort: Desc)])
+  @@index([userId, createdAt])
+  @@map("videos")
+}
+
+enum VideoStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+  DELETED
+}
+
+enum NsfwLevel {
+  SOFT       // Ecchi, suggestive content
+  MODERATE   // Partial nudity, sexual themes
+  EXPLICIT   // Explicit sexual content
+}
+
+// ============================================
+// TAGS AND CATEGORIZATION
+// ============================================
+
+model Tag {
+  id          String   @id @default(cuid())
+  name        String   @unique @db.VarChar(50)
+  slug        String   @unique @db.VarChar(50)
+  category    TagCategory
+  description String?  @db.VarChar(500)
+
+  // Flags
+  isNsfw      Boolean @default(false) @map("is_nsfw")
+  isOfficial  Boolean @default(false) @map("is_official")
+
+  // Stats
+  usageCount  Int @default(0) @map("usage_count")
+
+  // Timestamps
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  videos      VideoTag[]
+
+  @@index([name])
+  @@index([category])
+  @@index([usageCount(sort: Desc)])
+  @@map("tags")
+}
+
+enum TagCategory {
+  GENRE       // hentai, yaoi, yuri, etc.
+  CHARACTER   // waifu, husbando, etc.
+  STYLE       // 2D, 3D, animated, etc.
+  THEME       // school, fantasy, sci-fi, etc.
+  CONTENT     // censored, uncensored, etc.
+}
+
+model VideoTag {
+  id        String   @id @default(cuid())
+  videoId   String   @map("video_id")
+  tagId     String   @map("tag_id")
+  addedAt   DateTime @default(now()) @map("added_at")
+
+  // Relations
+  video     Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  tag       Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, tagId])
+  @@index([videoId])
+  @@index([tagId])
+  @@map("video_tags")
+}
+
+// ============================================
+// USER INTERACTIONS
+// ============================================
+
+model Interaction {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  videoId   String   @map("video_id")
+  type      InteractionType
+
+  // Metadata
+  watchDuration Int? @map("watch_duration") // Seconds watched
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId, type])
+  @@index([userId])
+  @@index([videoId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("interactions")
+}
+
+enum InteractionType {
+  VIEW
+  LIKE
+  DISLIKE
+  FAVORITE
+  SHARE
+  WATCH_LATER
+}
+
+// ============================================
+// COMMENTS
+// ============================================
+
+model Comment {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  videoId   String   @map("video_id")
+  parentId  String?  @map("parent_id") // For nested replies
+
+  content   String   @db.VarChar(2000)
+
+  // Stats
+  likesCount Int @default(0) @map("likes_count")
+
+  // Flags
+  isEdited  Boolean @default(false) @map("is_edited")
+  isDeleted Boolean @default(false) @map("is_deleted")
+  isPinned  Boolean @default(false) @map("is_pinned")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+
+  @@index([userId])
+  @@index([videoId])
+  @@index([parentId])
+  @@index([createdAt(sort: Desc)])
+  @@map("comments")
+}
+
+// ============================================
+// SOCIAL FEATURES
+// ============================================
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  follower    User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+// ============================================
+// MODERATION
+// ============================================
+
+model Report {
+  id        String   @id @default(cuid())
+  reporterId String  @map("reporter_id")
+  videoId   String?  @map("video_id")
+
+  reason    ReportReason
+  description String? @db.VarChar(1000)
+
+  // Status
+  status    ReportStatus @default(PENDING)
+  reviewedBy String?    @map("reviewed_by")
+  reviewNote String?    @map("review_note") @db.VarChar(1000)
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  reviewedAt DateTime? @map("reviewed_at")
+
+  // Relations
+  reporter  User @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  video     Video? @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([reporterId])
+  @@index([videoId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("reports")
+}
+
+enum ReportReason {
+  ILLEGAL_CONTENT
+  UNDERAGE_CONTENT
+  SPAM
+  HARASSMENT
+  COPYRIGHT
+  MISLEADING
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+
+  type      NotificationType
+  title     String   @db.VarChar(200)
+  message   String   @db.VarChar(500)
+
+  // Metadata
+  actionUrl String?  @map("action_url")
+  imageUrl  String?  @map("image_url")
+
+  // Status
+  isRead    Boolean  @default(false) @map("is_read")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  readAt    DateTime? @map("read_at")
+
+  // Relations
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  NEW_FOLLOWER
+  NEW_COMMENT
+  COMMENT_REPLY
+  VIDEO_LIKE
+  VIDEO_PROCESSED
+  SYSTEM_ALERT
+}
+
+// ============================================
+// AUTHENTICATION
+// ============================================
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+
+  token     String   @unique @db.VarChar(500)
+  refreshToken String? @unique @map("refresh_token") @db.VarChar(500)
+
+  // Metadata
+  userAgent String?  @map("user_agent") @db.VarChar(500)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  expiresAt DateTime @map("expires_at")
+  lastUsedAt DateTime @default(now()) @map("last_used_at")
+
+  // Relations
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ============================================
+// ANALYTICS (Optional for MVP)
+// ============================================
+
+model VideoView {
+  id        String   @id @default(cuid())
+  videoId   String   @map("video_id")
+  userId    String?  @map("user_id") // Null for anonymous views
+
+  // Analytics
+  watchDuration Int    @map("watch_duration") // Seconds watched
+  completionRate Float @map("completion_rate") // Percentage watched
+
+  // Context
+  referrer  String?  @db.VarChar(500)
+  device    String?  @db.VarChar(50)
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([videoId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("video_views")
+}
