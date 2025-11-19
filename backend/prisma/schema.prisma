@@ -54,6 +54,11 @@ model User {
   notifications Notification[]
   sessions      Session[]
   playlists     Playlist[]
+  subscriptions Subscription[]
+  payments      Payment[]
+  sentDonations Donation[] @relation("DonationSender")
+  receivedDonations Donation[] @relation("DonationReceiver")
+  revenue       Revenue[]
 
   @@index([email])
   @@index([username])
@@ -522,4 +527,185 @@ model PlaylistVideo {
   @@index([videoId])
   @@index([playlistId, position])
   @@map("playlist_videos")
+}
+
+// ============================================
+// PREMIUM & MONETIZATION
+// ============================================
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+
+  // Subscription details
+  plan      SubscriptionPlan
+  status    SubscriptionStatus @default(ACTIVE)
+
+  // Pricing
+  amount    Decimal  @db.Decimal(10, 2) // Monthly amount
+  currency  String   @default("USD") @db.VarChar(3)
+
+  // Billing period
+  currentPeriodStart DateTime @map("current_period_start")
+  currentPeriodEnd   DateTime @map("current_period_end")
+  cancelAtPeriodEnd  Boolean  @default(false) @map("cancel_at_period_end")
+
+  // Payment provider
+  stripeSubscriptionId String? @unique @map("stripe_subscription_id")
+  stripeCustomerId     String? @map("stripe_customer_id")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  canceledAt DateTime? @map("canceled_at")
+
+  // Relations
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments  Payment[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@map("subscriptions")
+}
+
+enum SubscriptionPlan {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  EXPIRED
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  subscriptionId String?  @map("subscription_id")
+  donationId     String?  @map("donation_id")
+
+  // Payment details
+  amount         Decimal  @db.Decimal(10, 2)
+  currency       String   @default("USD") @db.VarChar(3)
+  type           PaymentType
+  status         PaymentStatus @default(PENDING)
+
+  // Provider info
+  stripePaymentIntentId String? @unique @map("stripe_payment_intent_id")
+  stripeChargeId        String? @map("stripe_charge_id")
+  paymentMethod         String? @map("payment_method") @db.VarChar(50) // card, paypal, etc.
+
+  // Metadata
+  description    String?  @db.VarChar(500)
+  receiptUrl     String?  @map("receipt_url")
+  failureReason  String?  @map("failure_reason") @db.VarChar(500)
+
+  // Timestamps
+  createdAt      DateTime @default(now()) @map("created_at")
+  paidAt         DateTime? @map("paid_at")
+
+  // Relations
+  user           User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  donation       Donation? @relation(fields: [donationId], references: [id])
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([donationId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("payments")
+}
+
+enum PaymentType {
+  SUBSCRIPTION
+  DONATION
+  TIP
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model Donation {
+  id          String   @id @default(cuid())
+  senderId    String   @map("sender_id")
+  receiverId  String   @map("receiver_id")
+  videoId     String?  @map("video_id") // Optional: donation for specific video
+
+  // Donation details
+  amount      Decimal  @db.Decimal(10, 2)
+  currency    String   @default("USD") @db.VarChar(3)
+  message     String?  @db.VarChar(500) // Optional message to creator
+
+  // Display settings
+  isAnonymous Boolean  @default(false) @map("is_anonymous")
+  isPublic    Boolean  @default(true) @map("is_public") // Show in leaderboard
+
+  // Status
+  status      PaymentStatus @default(PENDING)
+
+  // Timestamps
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  sender      User @relation("DonationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User @relation("DonationReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  payment     Payment?
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([videoId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@index([receiverId, createdAt(sort: Desc)])
+  @@map("donations")
+}
+
+model Revenue {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+
+  // Revenue tracking
+  type      RevenueType
+  amount    Decimal  @db.Decimal(10, 2)
+  currency  String   @default("USD") @db.VarChar(3)
+
+  // Source
+  sourceId  String?  @map("source_id") // ID of donation, ad impression, etc.
+  videoId   String?  @map("video_id") // Optional: revenue from specific video
+
+  // Metadata
+  description String? @db.VarChar(500)
+
+  // Payout status
+  isPaid    Boolean  @default(false) @map("is_paid")
+  paidAt    DateTime? @map("paid_at")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([isPaid])
+  @@index([createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("revenue")
+}
+
+enum RevenueType {
+  DONATION
+  AD_REVENUE
+  SUBSCRIPTION_SHARE
+  TIP
 }
