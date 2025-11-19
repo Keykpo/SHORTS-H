@@ -82,6 +82,23 @@ export class VideoService {
   }
 
   /**
+   * Upload video with file (multipart/form-data)
+   */
+  static async uploadVideo(formData: FormData): Promise<Video> {
+    const { data } = await api.post<ApiResponse<Video>>('/videos/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    if (data.success && data.data) {
+      return data.data;
+    }
+
+    throw new Error(data.error || 'Failed to upload video');
+  }
+
+  /**
    * Get user's videos
    */
   static async getUserVideos(
