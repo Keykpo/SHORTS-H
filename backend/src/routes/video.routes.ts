@@ -7,6 +7,7 @@ import {
 } from '../middlewares/auth.middleware';
 import { validate, schemas } from '../middlewares/validation.middleware';
 import { uploadVideo } from '../middlewares/upload.middleware';
+import { uploadRateLimit } from '../middlewares/rate-limit.middleware';
 
 const router = Router();
 
@@ -43,6 +44,7 @@ router.post(
   '/upload',
   authenticate,
   requireAgeVerification,
+  uploadRateLimit,
   uploadVideo,
   VideoController.upload
 );

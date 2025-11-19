@@ -1,7 +1,6 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import morgan from 'morgan';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import { config } from './config';
@@ -9,6 +8,14 @@ import { connectDatabase, disconnectDatabase } from './config/database';
 import { redis } from './config/redis';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
+import { logger } from './config/logger';
+import { requestLogger, errorLogger, performanceLogger } from './middlewares/logging.middleware';
+import {
+  initSentry,
+  sentryRequestHandler,
+  sentryTracingHandler,
+  sentryErrorHandler,
+} from './config/sentry';
 
 class Server {
   public app: Application;
@@ -17,12 +24,20 @@ class Server {
   constructor() {
     this.app = express();
     this.port = config.port;
+
+    // Initialize Sentry first (must be before other middlewares)
+    initSentry(this.app);
+
     this.initializeMiddlewares();
     this.initializeRoutes();
     this.initializeErrorHandling();
   }
 
   private initializeMiddlewares(): void {
+    // Sentry request tracking (must be first)
+    this.app.use(sentryRequestHandler());
+    this.app.use(sentryTracingHandler());
+
     // Security
     this.app.use(helmet({
       contentSecurityPolicy: {
@@ -65,11 +80,8 @@ class Server {
     this.app.use(compression());
 
     // Logging
-    if (config.env === 'development') {
-      this.app.use(morgan('dev'));
-    } else {
-      this.app.use(morgan('combined'));
-    }
+    this.app.use(requestLogger);
+    this.app.use(performanceLogger);
   }
 
   private initializeRoutes(): void {
@@ -91,6 +103,12 @@ class Server {
     // 404 handler
     this.app.use(notFoundHandler);
 
+    // Sentry error handler (must be before other error handlers)
+    this.app.use(sentryErrorHandler());
+
+    // Error logging middleware
+    this.app.use(errorLogger);
+
     // Global error handler
     this.app.use(errorHandler);
   }
@@ -99,40 +117,44 @@ class Server {
     try {
       // Connect to database
       await connectDatabase();
+      logger.info('Database connected successfully');
 
       // Test Redis connection
       await redis.ping();
+      logger.info('Redis connected successfully');
 
       // Start server
       this.app.listen(this.port, () => {
-        console.log('');
-        console.log('🎬 ═══════════════════════════════════════');
-        console.log('   AnimeShorts API Server');
-        console.log('═══════════════════════════════════════');
-        console.log(`🚀 Environment: ${config.env}`);
-        console.log(`🌐 Server running on: ${config.apiUrl}`);
-        console.log(`📡 API endpoint: ${config.apiUrl}/api`);
-        console.log(`🔐 CORS enabled for: ${config.frontendUrl}`);
-        console.log('═══════════════════════════════════════');
-        console.log('');
+        logger.info('');
+        logger.info('🎬 ═══════════════════════════════════════');
+        logger.info('   AnimeShorts API Server');
+        logger.info('═══════════════════════════════════════');
+        logger.info(`🚀 Environment: ${config.env}`);
+        logger.info(`🌐 Server running on: ${config.apiUrl}`);
+        logger.info(`📡 API endpoint: ${config.apiUrl}/api`);
+        logger.info(`🔐 CORS enabled for: ${config.frontendUrl}`);
+        logger.info('═══════════════════════════════════════');
+        logger.info('');
       });
     } catch (error) {
-      console.error('❌ Failed to start server:', error);
+      logger.error('Failed to start server', { error });
       await this.shutdown();
       process.exit(1);
     }
   }
 
   public async shutdown(): Promise<void> {
-    console.log('\n🔌 Shutting down server...');
+    logger.info('Shutting down server...');
 
     // Disconnect from database
     await disconnectDatabase();
+    logger.info('Database disconnected');
 
     // Close Redis connection
     await redis.quit();
+    logger.info('Redis disconnected');
 
-    console.log('✅ Server shutdown complete');
+    logger.info('Server shutdown complete');
     process.exit(0);
   }
 }

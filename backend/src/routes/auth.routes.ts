@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AuthController } from '../controllers/auth.controller';
 import { authenticate } from '../middlewares/auth.middleware';
 import { validate, schemas } from '../middlewares/validation.middleware';
+import { authRateLimit } from '../middlewares/rate-limit.middleware';
 
 const router = Router();
 
@@ -12,6 +13,7 @@ const router = Router();
  */
 router.post(
   '/register',
+  authRateLimit,
   validate(schemas.register),
   AuthController.register
 );
@@ -23,6 +25,7 @@ router.post(
  */
 router.post(
   '/login',
+  authRateLimit,
   validate(schemas.login),
   AuthController.login
 );

@@ -6,6 +6,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
+import { logger } from '../config/logger';
 
 // Set ffmpeg path if using @ffmpeg-installer
 if (process.env.NODE_ENV === 'development') {
@@ -159,7 +160,7 @@ const uploadToS3 = async (
 videoQueue.process(async (job: Job<VideoProcessingJob>) => {
   const { videoId, inputPath, userId } = job.data;
 
-  console.log(`[VideoProcessor] Processing video ${videoId}...`);
+  logger.info('Processing video', { videoId, userId });
 
   try {
     // Update status to processing
@@ -171,7 +172,7 @@ videoQueue.process(async (job: Job<VideoProcessingJob>) => {
     // 1. Get video metadata
     job.progress(10);
     const metadata = await getVideoMetadata(inputPath);
-    console.log(`[VideoProcessor] Metadata extracted:`, metadata);
+    logger.info('Video metadata extracted', { videoId, metadata });
 
     // 2. Create temporary directory for processing
     const tempDir = path.join(config.upload.uploadDir, 'temp', videoId);
@@ -188,7 +189,7 @@ videoQueue.process(async (job: Job<VideoProcessingJob>) => {
       job.progress(20 + i * 20);
 
       const outputPath = path.join(tempDir, `${quality}.mp4`);
-      console.log(`[VideoProcessor] Transcoding to ${quality}...`);
+      logger.info('Transcoding video', { videoId, quality });
 
       await transcodeVideo(inputPath, outputPath, quality);
 
@@ -201,13 +202,13 @@ videoQueue.process(async (job: Job<VideoProcessingJob>) => {
         videoUrls[quality] = `/uploads/videos/processed/${videoId}/${quality}.mp4`;
       }
 
-      console.log(`[VideoProcessor] ${quality} transcoded successfully`);
+      logger.info('Video transcoded successfully', { videoId, quality });
     }
 
     // 4. Generate thumbnails
     job.progress(80);
     const thumbnailPath = path.join(tempDir, 'thumbnail.jpg');
-    console.log('[VideoProcessor] Generating thumbnail...');
+    logger.info('Generating thumbnail', { videoId });
 
     await generateThumbnail(inputPath, thumbnailPath);
 
@@ -232,7 +233,7 @@ videoQueue.process(async (job: Job<VideoProcessingJob>) => {
       thumbnailUrl = `/uploads/thumbnails/${videoId}.jpg`;
     }
 
-    console.log('[VideoProcessor] Thumbnail generated successfully');
+    logger.info('Thumbnail generated successfully', { videoId });
 
     // 5. Update video in database
     job.progress(95);
@@ -258,7 +259,7 @@ videoQueue.process(async (job: Job<VideoProcessingJob>) => {
     }
     fs.rmdirSync(tempDir, { recursive: true });
 
-    console.log(`[VideoProcessor] Video ${videoId} processed successfully!`);
+    logger.info('Video processed successfully', { videoId });
     job.progress(100);
 
     return {
@@ -269,7 +270,7 @@ videoQueue.process(async (job: Job<VideoProcessingJob>) => {
       metadata,
     };
   } catch (error) {
-    console.error(`[VideoProcessor] Error processing video ${videoId}:`, error);
+    logger.error('Error processing video', { videoId, error });
 
     // Update status to failed
     await prisma.video.update({
@@ -283,15 +284,15 @@ videoQueue.process(async (job: Job<VideoProcessingJob>) => {
 
 // Event listeners
 videoQueue.on('completed', (job, result) => {
-  console.log(`[VideoQueue] Job ${job.id} completed successfully`);
+  logger.info('Video processing job completed', { jobId: job.id, result });
 });
 
 videoQueue.on('failed', (job, err) => {
-  console.error(`[VideoQueue] Job ${job?.id} failed:`, err);
+  logger.error('Video processing job failed', { jobId: job?.id, error: err });
 });
 
 videoQueue.on('progress', (job, progress) => {
-  console.log(`[VideoQueue] Job ${job.id} is ${progress}% complete`);
+  logger.debug('Video processing job progress', { jobId: job.id, progress });
 });
 
 /**
@@ -319,7 +320,7 @@ export const addVideoToQueue = async (
     }
   );
 
-  console.log(`[VideoQueue] Added job ${job.id} for video ${videoId}`);
+  logger.info('Added video to processing queue', { jobId: job.id, videoId });
   return job;
 };
 

@@ -31,6 +31,7 @@ model User {
   isAgeVerified   Boolean @default(false) @map("is_age_verified")
   birthDate       DateTime? @map("birth_date") @db.Date
   isPremium       Boolean @default(false) @map("is_premium")
+  isAdmin         Boolean @default(false) @map("is_admin")
   isActive        Boolean @default(true) @map("is_active")
   isBanned        Boolean @default(false) @map("is_banned")
 

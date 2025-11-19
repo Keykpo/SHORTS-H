@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { prisma } from '../config/database';
+import { logger } from '../config/logger';
+import { setUser } from '../config/sentry';
 
 export interface JWTPayload {
   userId: string;
@@ -74,6 +76,9 @@ export const authenticate = async (
       };
       req.userId = user.id;
 
+      // Set user context for Sentry error tracking
+      setUser({ id: user.id, email: user.email });
+
       next();
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
@@ -90,7 +95,7 @@ export const authenticate = async (
       });
     }
   } catch (error) {
-    console.error('Authentication error:', error);
+    logger.error('Authentication error', { error });
     return res.status(500).json({
       success: false,
       error: 'Authentication failed',
