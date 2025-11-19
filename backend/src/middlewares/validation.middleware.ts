@@ -203,4 +203,13 @@ export const schemas = {
         .min(1, 'At least one video order is required'),
     }),
   }),
+
+  // Update watch progress
+  updateWatchProgress: z.object({
+    body: z.object({
+      videoId: z.string().cuid('Invalid video ID'),
+      watchedDuration: z.number().int().min(0, 'Watched duration must be non-negative'),
+      totalDuration: z.number().int().min(1, 'Total duration must be positive'),
+    }),
+  }),
 };

@@ -436,6 +436,32 @@ model VideoView {
 }
 
 // ============================================
+// WATCH HISTORY
+// ============================================
+
+model WatchHistory {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  videoId   String   @map("video_id")
+
+  // Progress tracking
+  watchedDuration Int    @map("watched_duration") // Seconds watched
+  totalDuration   Int    @map("total_duration")   // Total video duration
+  progressPercent Float  @map("progress_percent") // Percentage completed (0-100)
+  completed       Boolean @default(false)          // Watched > 90%
+
+  // Timestamps
+  lastWatchedAt DateTime @default(now()) @map("last_watched_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, videoId])
+  @@index([userId])
+  @@index([videoId])
+  @@index([userId, lastWatchedAt(sort: Desc)])
+  @@map("watch_history")
+}
+
+// ============================================
 // PLAYLISTS
 // ============================================
 
@@ -452,6 +478,10 @@ model Playlist {
   isPublic    Boolean  @default(true) @map("is_public")
   isSystem    Boolean  @default(false) @map("is_system") // For auto-playlists like "Liked Videos"
 
+  // Sharing
+  shareCode   String?  @unique @map("share_code") // Unique code for shareable links
+  sharesCount Int      @default(0) @map("shares_count")
+
   // Stats
   videosCount Int      @default(0) @map("videos_count")
   viewsCount  Int      @default(0) @map("views_count")
@@ -466,6 +496,7 @@ model Playlist {
 
   @@index([userId])
   @@index([isPublic])
+  @@index([shareCode])
   @@index([createdAt(sort: Desc)])
   @@index([userId, createdAt])
   @@map("playlists")
