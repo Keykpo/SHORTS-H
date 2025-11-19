@@ -53,6 +53,7 @@ model User {
   reports       Report[] @relation("Reporter")
   notifications Notification[]
   sessions      Session[]
+  playlists     Playlist[]
 
   @@index([email])
   @@index([username])
@@ -113,6 +114,7 @@ model Video {
   comments      Comment[]
   interactions  Interaction[]
   reports       Report[]
+  playlistVideos PlaylistVideo[]
 
   @@index([userId])
   @@index([status])
@@ -431,4 +433,62 @@ model VideoView {
   @@index([userId])
   @@index([createdAt])
   @@map("video_views")
+}
+
+// ============================================
+// PLAYLISTS
+// ============================================
+
+model Playlist {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+
+  // Content
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(500)
+  thumbnailUrl String? @map("thumbnail_url") // Uses first video's thumbnail by default
+
+  // Settings
+  isPublic    Boolean  @default(true) @map("is_public")
+  isSystem    Boolean  @default(false) @map("is_system") // For auto-playlists like "Liked Videos"
+
+  // Stats
+  videosCount Int      @default(0) @map("videos_count")
+  viewsCount  Int      @default(0) @map("views_count")
+
+  // Timestamps
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videos      PlaylistVideo[]
+
+  @@index([userId])
+  @@index([isPublic])
+  @@index([createdAt(sort: Desc)])
+  @@index([userId, createdAt])
+  @@map("playlists")
+}
+
+model PlaylistVideo {
+  id          String   @id @default(cuid())
+  playlistId  String   @map("playlist_id")
+  videoId     String   @map("video_id")
+
+  // Ordering
+  position    Int      @default(0) // For custom ordering
+
+  // Timestamps
+  addedAt     DateTime @default(now()) @map("added_at")
+
+  // Relations
+  playlist    Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  video       Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, videoId])
+  @@index([playlistId])
+  @@index([videoId])
+  @@index([playlistId, position])
+  @@map("playlist_videos")
 }

@@ -142,4 +142,65 @@ export const schemas = {
       sortBy: z.enum(['recent', 'popular', 'trending']).optional().default('recent'),
     }),
   }),
+
+  // Create playlist
+  createPlaylist: z.object({
+    body: z.object({
+      name: z
+        .string()
+        .min(1, 'Playlist name is required')
+        .max(100, 'Playlist name must be at most 100 characters'),
+      description: z
+        .string()
+        .max(500, 'Description must be at most 500 characters')
+        .optional(),
+      isPublic: z.boolean().optional().default(true),
+    }),
+  }),
+
+  // Update playlist
+  updatePlaylist: z.object({
+    params: z.object({
+      playlistId: z.string().cuid('Invalid playlist ID'),
+    }),
+    body: z.object({
+      name: z
+        .string()
+        .min(1, 'Playlist name cannot be empty')
+        .max(100, 'Playlist name must be at most 100 characters')
+        .optional(),
+      description: z
+        .string()
+        .max(500, 'Description must be at most 500 characters')
+        .optional(),
+      isPublic: z.boolean().optional(),
+    }),
+  }),
+
+  // Add video to playlist
+  addVideoToPlaylist: z.object({
+    params: z.object({
+      playlistId: z.string().cuid('Invalid playlist ID'),
+    }),
+    body: z.object({
+      videoId: z.string().cuid('Invalid video ID'),
+    }),
+  }),
+
+  // Reorder playlist
+  reorderPlaylist: z.object({
+    params: z.object({
+      playlistId: z.string().cuid('Invalid playlist ID'),
+    }),
+    body: z.object({
+      videoOrders: z
+        .array(
+          z.object({
+            videoId: z.string().cuid('Invalid video ID'),
+            position: z.number().int().min(0, 'Position must be a non-negative integer'),
+          })
+        )
+        .min(1, 'At least one video order is required'),
+    }),
+  }),
 };
