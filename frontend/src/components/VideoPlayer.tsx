@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { Video } from '@/types';
 import { VideoService } from '@/services/video.service';
+import { watchHistoryService } from '@/services/watch-history.service';
 
 interface VideoPlayerProps {
   video: Video;
@@ -17,6 +18,7 @@ export default function VideoPlayer({ video, isActive, onVideoEnd }: VideoPlayer
   const [isLiked, setIsLiked] = useState(video.isLiked || false);
   const [likesCount, setLikesCount] = useState(video.likesCount);
   const watchStartTime = useRef<number>(0);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -28,20 +30,58 @@ export default function VideoPlayer({ video, isActive, onVideoEnd }: VideoPlayer
         setIsPlaying(true);
         watchStartTime.current = Date.now();
       }).catch(console.error);
+
+      // Start tracking watch progress every 5 seconds
+      progressIntervalRef.current = setInterval(() => {
+        const currentTime = videoElement.currentTime;
+        const duration = videoElement.duration;
+
+        if (duration > 0 && currentTime > 0) {
+          watchHistoryService.updateProgress({
+            videoId: video.id,
+            watchedDuration: Math.floor(currentTime),
+            totalDuration: Math.floor(duration),
+          }).catch(console.error);
+        }
+      }, 5000);
     } else {
       // Pause when not active
       videoElement.pause();
       setIsPlaying(false);
 
-      // Record watch duration
+      // Clear progress tracking interval
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+
+      // Record final watch duration
       if (watchStartTime.current > 0) {
         const watchDuration = Math.floor((Date.now() - watchStartTime.current) / 1000);
         if (watchDuration > 0) {
           VideoService.recordView(video.id, watchDuration).catch(console.error);
+
+          // Update watch history with final progress
+          const currentTime = videoElement.currentTime;
+          const duration = videoElement.duration;
+          if (duration > 0 && currentTime > 0) {
+            watchHistoryService.updateProgress({
+              videoId: video.id,
+              watchedDuration: Math.floor(currentTime),
+              totalDuration: Math.floor(duration),
+            }).catch(console.error);
+          }
         }
         watchStartTime.current = 0;
       }
     }
+
+    // Cleanup on unmount
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
   }, [isActive, video.id]);
 
   const togglePlay = () => {

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import AgeGate from '@/components/AgeGate';
+import Providers from './providers';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -20,8 +21,10 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${inter.className} bg-black`}>
-        <AgeGate />
-        {children}
+        <Providers>
+          <AgeGate />
+          {children}
+        </Providers>
       </body>
     </html>
   );

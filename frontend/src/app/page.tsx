@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import VideoFeed from '@/components/VideoFeed';
+import Navigation from '@/components/Navigation';
 
 export default function Home() {
   const { loadUser } = useAuthStore();
@@ -15,6 +16,7 @@ export default function Home() {
   return (
     <main className="h-screen w-screen overflow-hidden bg-black">
       <VideoFeed />
+      <Navigation />
     </main>
   );
 }
