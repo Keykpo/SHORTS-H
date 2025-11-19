@@ -4,6 +4,7 @@ import './globals.css';
 import AgeGate from '@/components/AgeGate';
 import Providers from './providers';
 import SkipNavigation from '@/components/SkipNavigation';
+import CookieConsent from '@/components/CookieConsent';
 import { generateMetadata as genMetadata } from '@/lib/metadata';
 
 const inter = Inter({ subsets: ['latin'], display: 'swap' });
@@ -32,6 +33,7 @@ export default function RootLayout({
         <Providers>
           <AgeGate />
           {children}
+          <CookieConsent />
         </Providers>
       </body>
     </html>

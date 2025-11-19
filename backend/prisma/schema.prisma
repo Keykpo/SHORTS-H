@@ -39,6 +39,11 @@ model User {
   nsfwFilterEnabled Boolean @default(false) @map("nsfw_filter_enabled")
   language          String  @default("en") @db.VarChar(5)
 
+  // Two-Factor Authentication
+  twoFactorEnabled     Boolean  @default(false) @map("two_factor_enabled")
+  twoFactorSecret      String?  @map("two_factor_secret")
+  twoFactorBackupCodes String[] @default([]) @map("two_factor_backup_codes")
+
   // Timestamps
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
