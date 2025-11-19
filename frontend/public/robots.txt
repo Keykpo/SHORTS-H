@@ -1,0 +1,20 @@
+# robots.txt for AnimeShorts (Adult Content Platform)
+
+# Block all crawlers from indexing adult content
+User-agent: *
+Disallow: /
+
+# Allow crawling of static assets
+Allow: /*.css$
+Allow: /*.js$
+Allow: /*.png$
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.gif$
+Allow: /*.svg$
+Allow: /*.woff$
+Allow: /*.woff2$
+Allow: /*.ttf$
+
+# Sitemap
+Sitemap: https://animeshorts.com/sitemap.xml
