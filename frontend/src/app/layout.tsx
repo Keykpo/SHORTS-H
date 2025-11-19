@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import AgeGate from '@/components/AgeGate';
 import Providers from './providers';
+import SkipNavigation from '@/components/SkipNavigation';
 import { generateMetadata as genMetadata } from '@/lib/metadata';
 
 const inter = Inter({ subsets: ['latin'], display: 'swap' });
@@ -27,6 +28,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${inter.className} bg-black`}>
+        <SkipNavigation />
         <Providers>
           <AgeGate />
           {children}

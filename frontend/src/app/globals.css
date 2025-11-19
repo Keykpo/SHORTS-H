@@ -48,6 +48,35 @@ body {
   .text-shadow-lg {
     text-shadow: 0 4px 8px rgba(0, 0, 0, 0.8);
   }
+
+  /* Screen reader only - accessible but visually hidden */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .not-sr-only {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+
+  /* Focus visible styles for keyboard navigation */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-black;
+  }
 }
 
 /* Line clamp */
